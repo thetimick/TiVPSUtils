@@ -280,7 +280,7 @@ install_latest() {
     local temp_dir
     local archive_path
     local extracted_dir
-    local staging_dir
+    local staging_dir=""
     local old_dir=""
 
     temp_dir="$(mktemp -d)"
@@ -290,12 +290,12 @@ install_latest() {
     cleanup_install() {
         rm -rf "$temp_dir"
 
-        if [[ -n "${staging_dir:-}" && -d "${staging_dir:-}" ]]; then
+        if [[ -n "$staging_dir" && -d "$staging_dir" ]]; then
             rm -rf "$staging_dir"
         fi
     }
 
-    trap cleanup_install RETURN
+    trap cleanup_install EXIT
 
     echo
     echo "Загрузка TiVPSUtils..."
@@ -311,7 +311,7 @@ install_latest() {
 
     if [[ ! -f "${extracted_dir}/install.sh" ]]; then
         echo "Ошибка: install.sh отсутствует в репозитории."
-        return 1
+        exit 1
     fi
 
     staging_dir="$(mktemp -d "${INSTALL_DIR}.new.XXXXXX")"
