@@ -2,6 +2,10 @@
 
 set -Eeuo pipefail
 
+# ──────────────────────────────────────────────
+# Configuration
+# ──────────────────────────────────────────────
+
 REPO="thetimick/TiVPSUtils"
 BRANCH="main"
 
@@ -13,14 +17,101 @@ PROFILE_FILE="/etc/profile.d/tivpsutils.sh"
 ARCHIVE_URL="https://github.com/${REPO}/archive/refs/heads/${BRANCH}.tar.gz"
 
 # ──────────────────────────────────────────────
+# Colors
+# ──────────────────────────────────────────────
+
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+    RESET=$'\033[0m'
+    BOLD=$'\033[1m'
+    DIM=$'\033[2m'
+
+    RED=$'\033[31m'
+    GREEN=$'\033[32m'
+    YELLOW=$'\033[33m'
+    BLUE=$'\033[34m'
+    MAGENTA=$'\033[35m'
+    CYAN=$'\033[36m'
+else
+    RESET=""
+    BOLD=""
+    DIM=""
+
+    RED=""
+    GREEN=""
+    YELLOW=""
+    BLUE=""
+    MAGENTA=""
+    CYAN=""
+fi
+
+# ──────────────────────────────────────────────
+# Output
+# ──────────────────────────────────────────────
+
+info() {
+    printf "%b[INFO]%b %s\n" \
+        "${BLUE}${BOLD}" \
+        "$RESET" \
+        "$*"
+}
+
+success() {
+    printf "%b[ OK ]%b %s\n" \
+        "${GREEN}${BOLD}" \
+        "$RESET" \
+        "$*"
+}
+
+warn() {
+    printf "%b[WARN]%b %s\n" \
+        "${YELLOW}${BOLD}" \
+        "$RESET" \
+        "$*"
+}
+
+error() {
+    printf "%b[FAIL]%b %s\n" \
+        "${RED}${BOLD}" \
+        "$RESET" \
+        "$*" >&2
+}
+
+title() {
+    printf "%b%s%b\n" \
+        "${CYAN}${BOLD}" \
+        "$*" \
+        "$RESET"
+}
+
+command_text() {
+    printf "%b%s%b" \
+        "$CYAN" \
+        "$*" \
+        "$RESET"
+}
+
+separator() {
+    printf "%b──────────────────────────────────────────────%b\n" \
+        "$DIM" \
+        "$RESET"
+}
+
+# ──────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────
 
 require_root() {
     if [[ $EUID -ne 0 ]]; then
-        echo "Ошибка: операция требует root."
-        echo
-        echo "Запусти команду от root."
+        error "Операция требует root."
+        printf "\n"
+        printf "Запусти команду через sudo или от пользователя root.\n"
+        exit 1
+    fi
+}
+
+require_tar() {
+    if ! command -v tar >/dev/null 2>&1; then
+        error "tar не установлен."
         exit 1
     fi
 }
@@ -31,18 +122,30 @@ download_file() {
 
     if command -v curl >/dev/null 2>&1; then
         curl -fsSL "$url" -o "$output"
-    elif command -v wget >/dev/null 2>&1; then
-        wget -qO "$output" "$url"
-    else
-        echo "Ошибка: требуется curl или wget."
-        exit 1
+        return
     fi
+
+    if command -v wget >/dev/null 2>&1; then
+        wget -qO "$output" "$url"
+        return
+    fi
+
+    error "Требуется curl или wget."
+    exit 1
 }
 
 confirm() {
     local message="$1"
+    local answer
 
-    read -r -p "${message} [y/N]: " answer
+    printf "%b%s%b %b[y/N]%b: " \
+        "$YELLOW" \
+        "$message" \
+        "$RESET" \
+        "$DIM" \
+        "$RESET"
+
+    read -r answer
 
     case "$answer" in
         y|Y|yes|YES)
@@ -70,13 +173,13 @@ get_command_name() {
     local name
 
     filename="$(basename "$script")"
-
     name="$(get_metadata "$script" "TI_ALIAS")"
 
     if [[ -z "$name" ]]; then
         name="${filename%.sh}"
 
-        # Backward compatibility
+        # Backward compatibility:
+        # updater.sh -> tiupdate
         if [[ "$name" == "updater" ]]; then
             name="update"
         fi
@@ -125,18 +228,18 @@ generate_aliases() {
     require_root
 
     if ! is_installed; then
-        echo "TiVPSUtils не установлен."
+        error "TiVPSUtils не установлен."
         return 1
     fi
 
-    echo "Обновление aliases..."
+    info "Обновление aliases..."
 
     local temp_file
     temp_file="$(mktemp)"
 
     cat > "$temp_file" <<EOF
 # TiVPSUtils
-# Generated automatically by TiVPSUtils manager.
+# Generated automatically by TiVPSUtils Manager.
 # Do not edit manually.
 
 alias tiinstall='${INSTALL_DIR}/install.sh'
@@ -151,14 +254,14 @@ EOF
             local alias_name
 
             if ! command_name="$(get_command_name "$script")"; then
-                echo "Пропущен $(basename "$script"): некорректный TI_ALIAS."
+                warn "Пропущен $(basename "$script"): некорректный TI_ALIAS."
                 continue
             fi
 
             alias_name="ti${command_name}"
 
             if [[ -n "${used_aliases[$alias_name]:-}" ]]; then
-                echo "Пропущен ${alias_name}: alias уже существует."
+                warn "Пропущен ${alias_name}: alias уже существует."
                 continue
             fi
 
@@ -182,42 +285,67 @@ EOF
     install -m 0644 "$temp_file" "$PROFILE_FILE"
     rm -f "$temp_file"
 
-    echo "Aliases обновлены."
-    echo
-    echo "Для применения в текущей shell-сессии:"
-    echo "  source ${PROFILE_FILE}"
+    success "Aliases обновлены."
 }
 
 show_aliases() {
+    printf "\n"
+    title "Aliases TiVPSUtils"
+    separator
+    printf "\n"
+
     if [[ ! -f "$PROFILE_FILE" ]]; then
-        echo "Aliases TiVPSUtils не установлены."
+        warn "Aliases TiVPSUtils не установлены."
+        printf "\n"
         return
     fi
 
-    echo
-    echo "Aliases:"
-    echo
+    local found=false
 
-    grep '^alias ' "$PROFILE_FILE" || true
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^alias[[:space:]]+([^=]+)=\'(.*)\'$ ]]; then
+            local alias_name="${BASH_REMATCH[1]}"
+            local alias_path="${BASH_REMATCH[2]}"
+
+            printf "  %b%-20s%b %s\n" \
+                "$CYAN" \
+                "$alias_name" \
+                "$RESET" \
+                "$alias_path"
+
+            found=true
+        fi
+    done < "$PROFILE_FILE"
+
+    if [[ "$found" == false ]]; then
+        warn "Aliases не найдены."
+    fi
+
+    printf "\n"
 }
 
 clear_aliases() {
     require_root
 
     if [[ ! -f "$PROFILE_FILE" ]]; then
-        echo "Aliases уже отсутствуют."
+        warn "Aliases уже отсутствуют."
         return
     fi
 
     rm -f "$PROFILE_FILE"
 
-    echo "Aliases TiVPSUtils удалены."
-    echo
-    echo "Важно: aliases, уже загруженные в текущую shell-сессию,"
-    echo "останутся до повторного входа или перезапуска shell."
-    echo
-    echo "Менеджер всё ещё доступен напрямую:"
-    echo "  ${INSTALL_DIR}/install.sh"
+    success "Aliases TiVPSUtils удалены."
+
+    printf "\n"
+    warn "Aliases, уже загруженные в текущую shell-сессию,"
+    printf "останутся активными до повторного входа или перезапуска shell.\n"
+
+    printf "\n"
+    printf "Менеджер всё ещё можно запустить напрямую:\n"
+    printf "  %b%s/install.sh%b\n" \
+        "$CYAN" \
+        "$INSTALL_DIR" \
+        "$RESET"
 }
 
 # ──────────────────────────────────────────────
@@ -225,17 +353,21 @@ clear_aliases() {
 # ──────────────────────────────────────────────
 
 list_commands() {
-    echo
-    echo "Доступные команды TiVPSUtils:"
-    echo
+    printf "\n"
+    title "Доступные команды TiVPSUtils"
+    separator
+    printf "\n"
 
-    printf "  %-20s %s\n" \
+    printf "  %b%-20s%b %s\n" \
+        "$CYAN" \
         "tiinstall" \
+        "$RESET" \
         "Менеджер TiVPSUtils"
 
     if [[ ! -d "$SCRIPTS_DIR" ]]; then
-        echo
-        echo "Скрипты не установлены."
+        printf "\n"
+        warn "Скрипты не установлены."
+        printf "\n"
         return
     fi
 
@@ -249,8 +381,10 @@ list_commands() {
 
         description="$(get_description "$script")"
 
-        printf "  %-20s %s\n" \
+        printf "  %b%-20s%b %s\n" \
+            "$CYAN" \
             "ti${command_name}" \
+            "$RESET" \
             "$description"
 
     done < <(
@@ -262,20 +396,16 @@ list_commands() {
             | sort -z
     )
 
-    echo
+    printf "\n"
 }
 
 # ──────────────────────────────────────────────
 # Install / Update
 # ──────────────────────────────────────────────
 
-install_latest() {
+install_latest() (
     require_root
-
-    if ! command -v tar >/dev/null 2>&1; then
-        echo "Ошибка: tar не установлен."
-        exit 1
-    fi
+    require_tar
 
     local temp_dir
     local archive_path
@@ -288,19 +418,23 @@ install_latest() {
     extracted_dir="${temp_dir}/repo"
 
     cleanup_install() {
-        rm -rf "$temp_dir"
-
-        if [[ -n "$staging_dir" && -d "$staging_dir" ]]; then
+        if [[ -n "${staging_dir:-}" && -d "${staging_dir:-}" ]]; then
             rm -rf "$staging_dir"
+        fi
+
+        if [[ -n "${temp_dir:-}" && -d "${temp_dir:-}" ]]; then
+            rm -rf "$temp_dir"
         fi
     }
 
     trap cleanup_install EXIT
 
-    echo
-    echo "Загрузка TiVPSUtils..."
+    printf "\n"
 
+    info "Загрузка TiVPSUtils..."
     download_file "$ARCHIVE_URL" "$archive_path"
+
+    info "Распаковка архива..."
 
     mkdir -p "$extracted_dir"
 
@@ -310,9 +444,15 @@ install_latest() {
         --strip-components=1
 
     if [[ ! -f "${extracted_dir}/install.sh" ]]; then
-        echo "Ошибка: install.sh отсутствует в репозитории."
+        error "install.sh отсутствует в репозитории."
         exit 1
     fi
+
+    if [[ ! -d "${extracted_dir}/src" ]]; then
+        warn "Директория src отсутствует в репозитории."
+    fi
+
+    info "Подготовка файлов..."
 
     staging_dir="$(mktemp -d "${INSTALL_DIR}.new.XXXXXX")"
 
@@ -323,6 +463,8 @@ install_latest() {
         -name "*.sh" \
         -exec chmod 0755 {} \;
 
+    info "Установка в ${INSTALL_DIR}..."
+
     if [[ -d "$INSTALL_DIR" ]]; then
         old_dir="${INSTALL_DIR}.old.$$"
 
@@ -330,24 +472,45 @@ install_latest() {
         mv "$INSTALL_DIR" "$old_dir"
     fi
 
-    mv "$staging_dir" "$INSTALL_DIR"
+    if ! mv "$staging_dir" "$INSTALL_DIR"; then
+        error "Не удалось установить TiVPSUtils."
+
+        if [[ -n "$old_dir" && -d "$old_dir" ]]; then
+            warn "Восстановление предыдущей версии..."
+            mv "$old_dir" "$INSTALL_DIR"
+        fi
+
+        exit 1
+    fi
+
     staging_dir=""
 
-    if [[ -n "$old_dir" ]]; then
+    if [[ -n "$old_dir" && -d "$old_dir" ]]; then
         rm -rf "$old_dir"
     fi
 
     generate_aliases
 
-    echo
-    echo "TiVPSUtils успешно установлен."
-    echo
-    echo "Путь:"
-    echo "  ${INSTALL_DIR}"
-    echo
+    printf "\n"
+    success "TiVPSUtils успешно установлен."
+
+    printf "\n"
+    printf "Путь: %b%s%b\n" \
+        "$CYAN" \
+        "$INSTALL_DIR" \
+        "$RESET"
 
     list_commands
-}
+
+    printf "Для применения aliases в текущей shell-сессии:\n"
+    printf "\n"
+    printf "  %bsource %s%b\n" \
+        "$CYAN" \
+        "$PROFILE_FILE" \
+        "$RESET"
+
+    printf "\n"
+)
 
 # ──────────────────────────────────────────────
 # Uninstall
@@ -359,23 +522,52 @@ uninstall_all() {
     local force="${1:-false}"
 
     if [[ "$force" != "true" ]]; then
+        printf "\n"
+
         if ! confirm "Полностью удалить TiVPSUtils?"; then
-            echo "Отменено."
+            warn "Удаление отменено."
             return
         fi
     fi
 
-    echo
-    echo "Удаление TiVPSUtils..."
+    printf "\n"
+    info "Удаление aliases..."
 
     rm -f "$PROFILE_FILE"
+
+    info "Удаление ${INSTALL_DIR}..."
+
+    # Если менеджер запущен из INSTALL_DIR, Bash уже держит
+    # открытый скрипт, поэтому удалить каталог безопасно.
     rm -rf "$INSTALL_DIR"
 
-    echo
-    echo "TiVPSUtils полностью удалён."
-    echo
-    echo "Aliases исчезнут из текущей shell-сессии"
-    echo "после повторного входа или перезапуска shell."
+    printf "\n"
+    success "TiVPSUtils полностью удалён."
+
+    printf "\n"
+    warn "Aliases текущей shell-сессии могут оставаться активными"
+    printf "до повторного входа или перезапуска shell.\n"
+
+    printf "\n"
+}
+
+# ──────────────────────────────────────────────
+# Header
+# ──────────────────────────────────────────────
+
+show_header() {
+    printf "\n"
+    printf "%b┌──────────────────────────────────────────────┐%b\n" \
+        "${CYAN}${BOLD}" \
+        "$RESET"
+
+    printf "%b│              TiVPSUtils Manager              │%b\n" \
+        "${CYAN}${BOLD}" \
+        "$RESET"
+
+    printf "%b└──────────────────────────────────────────────┘%b\n" \
+        "${CYAN}${BOLD}" \
+        "$RESET"
 }
 
 # ──────────────────────────────────────────────
@@ -384,22 +576,42 @@ uninstall_all() {
 
 show_menu() {
     while true; do
-        echo
-        echo "┌──────────────────────────────────────────────┐"
-        echo "│               TiVPSUtils Manager             │"
-        echo "└──────────────────────────────────────────────┘"
-        echo
-        echo "  1) Установить / обновить TiVPSUtils"
-        echo "  2) Показать доступные команды"
-        echo "  3) Показать aliases"
-        echo "  4) Пересоздать aliases"
-        echo "  5) Очистить aliases"
-        echo "  6) Полностью удалить TiVPSUtils"
-        echo
-        echo "  0) Выход"
-        echo
+        show_header
 
-        read -r -p "Выбери действие: " choice
+        printf "\n"
+
+        printf "  %b1)%b Установить / обновить TiVPSUtils\n" \
+            "$CYAN" "$RESET"
+
+        printf "  %b2)%b Показать доступные команды\n" \
+            "$CYAN" "$RESET"
+
+        printf "  %b3)%b Показать aliases\n" \
+            "$CYAN" "$RESET"
+
+        printf "  %b4)%b Пересоздать aliases\n" \
+            "$CYAN" "$RESET"
+
+        printf "  %b5)%b Очистить aliases\n" \
+            "$YELLOW" "$RESET"
+
+        printf "  %b6)%b Полностью удалить TiVPSUtils\n" \
+            "$RED" "$RESET"
+
+        printf "\n"
+
+        printf "  %b0)%b Выход\n" \
+            "$DIM" "$RESET"
+
+        printf "\n"
+
+        local choice
+
+        printf "%bВыбери действие%b: " \
+            "$BOLD" \
+            "$RESET"
+
+        read -r choice
 
         case "$choice" in
             1)
@@ -412,11 +624,18 @@ show_menu() {
                 show_aliases
                 ;;
             4)
+                printf "\n"
                 generate_aliases
+                printf "\n"
                 ;;
             5)
+                printf "\n"
+
                 if confirm "Удалить все aliases TiVPSUtils?"; then
+                    printf "\n"
                     clear_aliases
+                else
+                    warn "Операция отменена."
                 fi
                 ;;
             6)
@@ -424,59 +643,104 @@ show_menu() {
                 return
                 ;;
             0)
+                printf "\n"
                 return
                 ;;
             *)
-                echo "Неизвестный пункт."
+                printf "\n"
+                error "Неизвестный пункт: ${choice}"
                 ;;
         esac
     done
 }
 
 # ──────────────────────────────────────────────
-# CLI
+# Help
 # ──────────────────────────────────────────────
 
 show_help() {
-    cat <<EOF
-TiVPSUtils Manager
+    show_header
 
-Использование:
+    printf "\n"
+    title "Использование"
+    separator
+    printf "\n"
 
-  tiinstall
-      Открыть интерактивное меню.
+    printf "  %btiinstall%b\n" \
+        "$CYAN" "$RESET"
+    printf "      Открыть интерактивный менеджер.\n"
 
-  tiinstall update
-      Скачать и установить последнюю версию TiVPSUtils.
+    printf "\n"
 
-  tiinstall list
-      Показать доступные команды.
+    printf "  %btiinstall update%b\n" \
+        "$CYAN" "$RESET"
+    printf "      Скачать и установить последнюю версию.\n"
 
-  tiinstall aliases
-      Показать установленные aliases.
+    printf "\n"
 
-  tiinstall rebuild-aliases
-      Пересоздать aliases.
+    printf "  %btiinstall list%b\n" \
+        "$CYAN" "$RESET"
+    printf "      Показать доступные команды.\n"
 
-  tiinstall clear-aliases
-      Удалить aliases.
+    printf "\n"
 
-  tiinstall uninstall
-      Полностью удалить TiVPSUtils.
+    printf "  %btiinstall aliases%b\n" \
+        "$CYAN" "$RESET"
+    printf "      Показать установленные aliases.\n"
 
-  tiinstall uninstall --yes
-      Удалить TiVPSUtils без подтверждения.
+    printf "\n"
 
-  tiinstall help
-      Показать эту справку.
-EOF
+    printf "  %btiinstall rebuild-aliases%b\n" \
+        "$CYAN" "$RESET"
+    printf "      Пересоздать aliases.\n"
+
+    printf "\n"
+
+    printf "  %btiinstall clear-aliases%b\n" \
+        "$CYAN" "$RESET"
+    printf "      Удалить aliases TiVPSUtils.\n"
+
+    printf "\n"
+
+    printf "  %btiinstall uninstall%b\n" \
+        "$CYAN" "$RESET"
+    printf "      Полностью удалить TiVPSUtils.\n"
+
+    printf "\n"
+
+    printf "  %btiinstall uninstall --yes%b\n" \
+        "$CYAN" "$RESET"
+    printf "      Удалить TiVPSUtils без подтверждения.\n"
+
+    printf "\n"
+
+    printf "  %btiinstall help%b\n" \
+        "$CYAN" "$RESET"
+    printf "      Показать справку.\n"
+
+    printf "\n"
 }
+
+# ──────────────────────────────────────────────
+# CLI
+# ──────────────────────────────────────────────
 
 main() {
     local command="${1:-}"
 
+    # При запуске через:
+    #
+    # curl .../install.sh | sudo bash
+    #
+    # автоматически запускаем установку.
+    #
+    # При запуске установленного:
+    #
+    # tiinstall
+    #
+    # открываем менеджер.
+
     if [[ -z "$command" ]]; then
-        # curl ... | sudo bash
         if ! is_running_installed_manager; then
             install_latest
             return
@@ -500,11 +764,15 @@ main() {
             ;;
 
         rebuild-aliases)
+            printf "\n"
             generate_aliases
+            printf "\n"
             ;;
 
         clear-aliases)
+            printf "\n"
             clear_aliases
+            printf "\n"
             ;;
 
         uninstall|remove)
@@ -520,8 +788,8 @@ main() {
             ;;
 
         *)
-            echo "Неизвестная команда: $command"
-            echo
+            error "Неизвестная команда: ${command}"
+            printf "\n"
             show_help
             exit 1
             ;;
