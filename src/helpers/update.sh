@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-APP_NAME="Ubuntu Auto Updates Manager"
+APP_NAME="Автообновления Ubuntu"
 SCHEDULE_TIMEZONE="Europe/Moscow"
 
 # ============================================================
@@ -333,59 +333,57 @@ show_header() {
     local list_time
     list_time="$(package_list_time)"
 
-    echo
+    ui_field "Часовой пояс расписания:" "МСК ($SCHEDULE_TIMEZONE)"
 
-    printf "  %-29s %s\n" "Часовой пояс расписания:" "МСК ($SCHEDULE_TIMEZONE)"
-
-    printf "  %-29s %b\n" \
+    ui_field \
         "Автообновления:" \
         "$(bool_text "$ENABLE_AUTO_UPDATES")"
 
-    printf "  %-29s %s\n" \
+    ui_field \
         "Время обновления:" \
         "$UPGRADE_TIME"
 
-    printf "  %-29s %s\n" \
+    ui_field \
         "Обновление package lists:" \
         "$list_time"
 
-    printf "  %-29s %b\n" \
+    ui_field \
         "Обычные Ubuntu updates:" \
         "$(bool_text "$ENABLE_REGULAR_UPDATES")"
 
-    printf "  %-29s %b\n" \
+    ui_field \
         "Автоматический reboot:" \
         "$(bool_text "$AUTO_REBOOT")"
 
-    printf "  %-29s %b\n" \
+    ui_field \
         "Reboot с users:" \
         "$(bool_text "$REBOOT_WITH_USERS")"
 
     if [[ "$REBOOT_TIME" == "now" ]]; then
-        printf "  %-29s %s\n" \
+        ui_field \
             "Время reboot:" \
             "сразу после обновления"
     else
-        printf "  %-29s %s\n" \
+        ui_field \
             "Время reboot:" \
             "$REBOOT_TIME"
     fi
 
-    printf "  %-29s %b\n" \
+    ui_field \
         "Очистка зависимостей:" \
         "$(bool_text "$REMOVE_UNUSED_DEPENDENCIES")"
 
-    printf "  %-29s %b\n" \
+    ui_field \
         "Очистка старых ядер:" \
         "$(bool_text "$REMOVE_UNUSED_KERNELS")"
 
-    printf "  %-29s %b\n" \
+    ui_field \
         "Persistent timers:" \
         "$(bool_text "$PERSISTENT_TIMERS")"
 
-    printf "  %-29s %s дней\n" \
+    ui_field \
         "Autoclean:" \
-        "$AUTOCLEAN_DAYS"
+        "$AUTOCLEAN_DAYS дней"
 
     echo
 }
@@ -441,7 +439,7 @@ show_status() {
 
 change_upgrade_time() {
     echo
-    read -r -p "Введите время обновления по МСК [HH:MM]: " value
+    ui_read "Введите время обновления по МСК [HH:MM]:" value
 
     if ! validate_time "$value"; then
         error "Некорректное время."
@@ -459,7 +457,7 @@ change_package_list_advance() {
     echo "Сейчас apt update выполняется за $PACKAGE_LIST_ADVANCE мин. до обновления."
     echo
 
-    read -r -p "Введите количество минут [0-1440]: " value
+    ui_read "Введите количество минут [0-1440]:" value
 
     if [[ ! "$value" =~ ^[0-9]+$ ]]; then
         error "Введите число."
@@ -486,7 +484,7 @@ change_reboot_time() {
     menu_item "2" "В заданное время"
     echo
 
-    read -r -p "Выберите вариант: " choice
+    ui_read "Выберите вариант:" choice
 
     case "$choice" in
         1)
@@ -496,7 +494,7 @@ change_reboot_time() {
 
         2)
             echo
-            read -r -p "Введите время reboot по МСК [HH:MM]: " value
+            ui_read "Введите время reboot по МСК [HH:MM]:" value
 
             if ! validate_time "$value"; then
                 error "Некорректное время."
@@ -517,7 +515,7 @@ change_reboot_time() {
 
 change_autoclean_days() {
     echo
-    read -r -p "Запускать apt autoclean каждые N дней [0-365]: " value
+    ui_read "Запускать apt autoclean каждые N дней [0-365]:" value
 
     if [[ ! "$value" =~ ^[0-9]+$ ]]; then
         error "Введите число."
