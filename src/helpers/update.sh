@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 APP_NAME="Ubuntu Auto Updates Manager"
+SCHEDULE_TIMEZONE="Europe/Moscow"
 
 # ============================================================
 # Ubuntu Auto Updates Manager
@@ -95,6 +96,29 @@ load_config() {
     fi
 }
 
+initialize_config() {
+    load_config
+    ensure_schedule_timezone || return $?
+
+    # Defaults in memory do not mean that APT and systemd are configured.
+    # Also recover an interrupted setup without changing saved preferences.
+    if [[ ! -f "$CONFIG_FILE" || ! -f "$APT_PERIODIC_CONFIG" \
+        || ! -f "$UNATTENDED_CONFIG" || ! -f "$APT_DAILY_DROPIN" \
+        || ! -f "$APT_UPGRADE_DROPIN" ]]; then
+        info "Применяю начальную конфигурацию автообновлений..."
+        apply_config || return $?
+    fi
+}
+
+ensure_schedule_timezone() {
+    local current_timezone
+    current_timezone="$(timedatectl show --property=Timezone --value)" || return $?
+    if [[ "$current_timezone" != "$SCHEDULE_TIMEZONE" ]]; then
+        info "Устанавливаю часовой пояс VPS: МСК ($SCHEDULE_TIMEZONE)..."
+        timedatectl set-timezone "$SCHEDULE_TIMEZONE" || return $?
+    fi
+}
+
 save_config() {
     cat > "$CONFIG_FILE" <<EOF
 ENABLE_AUTO_UPDATES="$ENABLE_AUTO_UPDATES"
@@ -150,12 +174,12 @@ ensure_packages() {
         echo
         info "Установка необходимых пакетов..."
 
-        apt-get update
+        apt-get update || return $?
 
         DEBIAN_FRONTEND=noninteractive \
             apt-get install -y \
             unattended-upgrades \
-            update-notifier-common
+            update-notifier-common || return $?
     fi
 }
 
@@ -239,8 +263,8 @@ write_timer_config() {
     local list_time
     list_time="$(package_list_time)"
 
-    mkdir -p "$APT_DAILY_DROPIN_DIR"
-    mkdir -p "$APT_UPGRADE_DROPIN_DIR"
+    mkdir -p "$APT_DAILY_DROPIN_DIR" || return $?
+    mkdir -p "$APT_UPGRADE_DROPIN_DIR" || return $?
 
     cat > "$APT_DAILY_DROPIN" <<EOF
 [Timer]
@@ -250,6 +274,8 @@ RandomizedDelaySec=0
 AccuracySec=1s
 Persistent=$PERSISTENT_TIMERS
 EOF
+    local write_status=$?
+    (( write_status == 0 )) || return "$write_status"
 
     cat > "$APT_UPGRADE_DROPIN" <<EOF
 [Timer]
@@ -266,32 +292,35 @@ EOF
 # ------------------------------------------------------------
 
 apply_config() {
-    ensure_packages
-    save_config
+    ensure_schedule_timezone || return $?
+    ensure_packages || return $?
 
-    write_periodic_config
-    write_unattended_config
-    write_timer_config
+    write_periodic_config || return $?
+    write_unattended_config || return $?
+    write_timer_config || return $?
 
-    systemctl daemon-reload
+    systemctl daemon-reload || return $?
 
     if [[ "$ENABLE_AUTO_UPDATES" == "true" ]]; then
-        systemctl enable apt-daily.timer >/dev/null 2>&1 || true
-        systemctl enable apt-daily-upgrade.timer >/dev/null 2>&1 || true
+        systemctl enable apt-daily.timer || return $?
+        systemctl enable apt-daily-upgrade.timer || return $?
 
-        systemctl restart apt-daily.timer
-        systemctl restart apt-daily-upgrade.timer
+        systemctl restart apt-daily.timer || return $?
+        systemctl restart apt-daily-upgrade.timer || return $?
     else
-        systemctl disable --now apt-daily.timer >/dev/null 2>&1 || true
-        systemctl disable --now apt-daily-upgrade.timer >/dev/null 2>&1 || true
+        systemctl disable --now apt-daily.timer || return $?
+        systemctl disable --now apt-daily-upgrade.timer || return $?
     fi
+
+    # Record preferences only after all configuration and timer operations succeed.
+    save_config || return $?
 
     echo
     success "Настройки применены."
 }
 
 apply_quiet() {
-    apply_config
+    apply_config || return $?
     sleep 1
 }
 
@@ -305,6 +334,8 @@ show_header() {
     list_time="$(package_list_time)"
 
     echo
+
+    printf "  %-29s %s\n" "Часовой пояс расписания:" "МСК ($SCHEDULE_TIMEZONE)"
 
     printf "  %-29s %b\n" \
         "Автообновления:" \
@@ -377,7 +408,7 @@ show_status() {
     section_title "Следующие запуски:"
     echo
 
-    systemctl list-timers \
+    TZ="$SCHEDULE_TIMEZONE" systemctl list-timers \
         apt-daily.timer \
         apt-daily-upgrade.timer \
         --all \
@@ -398,7 +429,7 @@ show_status() {
     fi
 
     echo
-    section_title "Timezone:"
+    section_title "Часовой пояс VPS (расписание по МСК):"
     timedatectl | grep "Time zone" || true
 
     pause
@@ -410,7 +441,7 @@ show_status() {
 
 change_upgrade_time() {
     echo
-    read -r -p "Введите время обновления [HH:MM]: " value
+    read -r -p "Введите время обновления по МСК [HH:MM]: " value
 
     if ! validate_time "$value"; then
         error "Некорректное время."
@@ -465,7 +496,7 @@ change_reboot_time() {
 
         2)
             echo
-            read -r -p "Введите время reboot [HH:MM]: " value
+            read -r -p "Введите время reboot по МСК [HH:MM]: " value
 
             if ! validate_time "$value"; then
                 error "Некорректное время."
@@ -714,4 +745,3 @@ remove_manager_config() {
 
     exit 0
 }
-

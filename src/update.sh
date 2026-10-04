@@ -147,6 +147,6 @@ main_menu() {
 require_root "$@"
 require_ubuntu
 
-load_config
+initialize_config
 
 main_menu
