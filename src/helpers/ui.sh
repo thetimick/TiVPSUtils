@@ -2,26 +2,34 @@
 # Shared console UI. Source this file; do not execute it.
 
 if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != dumb ]]; then
-    RED='\033[0;31m' GREEN='\033[0;32m' YELLOW='\033[1;33m'
-    BLUE='\033[0;34m' CYAN='\033[0;36m' BOLD='\033[1m' RESET='\033[0m'
+    RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m'
+    BLUE=$'\033[34m' CYAN=$'\033[36m' BOLD=$'\033[1m' DIM=$'\033[2m' RESET=$'\033[0m'
 else
-    RED='' GREEN='' YELLOW='' BLUE='' CYAN='' BOLD='' RESET=''
+    RED='' GREEN='' YELLOW='' BLUE='' CYAN='' BOLD='' DIM='' RESET=''
 fi
 
-info() { printf '%bℹ%b %s\n' "$BLUE" "$RESET" "$*"; }
-success() { printf '%b✔%b %s\n' "$GREEN" "$RESET" "$*"; }
-warn() { printf '%b⚠%b %s\n' "$YELLOW" "$RESET" "$*"; }
-error() { printf '%b✘%b %s\n' "$RED" "$RESET" "$*" >&2; }
+# Cyan: navigation; green: success; yellow: caution; red: failure/destruction.
+# Muted text: secondary information, exit and cancel. Labels work without color.
+info() { printf '%b[INFO]%b %s\n' "$BLUE" "$RESET" "$*"; }
+success() { printf '%b[ OK ]%b %s\n' "$GREEN" "$RESET" "$*"; }
+warn() { printf '%b[WARN]%b %s\n' "$YELLOW" "$RESET" "$*"; }
+error() { printf '%b[FAIL]%b %s\n' "$RED" "$RESET" "$*" >&2; }
 die() { error "$@"; exit 1; }
+
+ui_read() {
+    printf '%b%s%b ' "$BOLD" "$1" "$RESET" >&2
+    read -r "${2:-REPLY}"
+}
 
 pause() {
     printf '\n'
-    read -r -p 'Нажми Enter, чтобы продолжить...' _ || true
+    local reply
+    ui_read 'Нажми Enter, чтобы продолжить...' reply || true
 }
 
 confirm() {
     local answer
-    read -r -p "${1:-Продолжить?} [y/N]: " answer || return 1
+    ui_read "${1:-Продолжить?} [y/N]:" answer || return 1
     case "$answer" in
         y|Y|yes|YES|д|Д|да|Да|ДА) return 0 ;;
         *) return 1 ;;
@@ -44,9 +52,22 @@ require_root() {
 }
 
 ui_header() {
-    printf '\n%b┌──────────────────────────────────────────────┐%b\n' "${CYAN}${BOLD}" "$RESET"
-    printf '%b│ %-44s │%b\n' "${CYAN}${BOLD}" "$1" "$RESET"
-    printf '%b└──────────────────────────────────────────────┘%b\n\n' "${CYAN}${BOLD}" "$RESET"
+    printf '\n%bTiVPSUtils%b\n' "$DIM" "$RESET"
+    printf '%b%s%b\n' "${CYAN}${BOLD}" "$1" "$RESET"
+    separator
+    printf '\n'
+}
+
+separator() {
+    printf '%b──────────────────────────────────────────────%b\n' "$DIM" "$RESET"
+}
+
+ui_field() {
+    printf '  %b%s%b %s\n' "$DIM" "$1" "$RESET" "$2"
+}
+
+ui_command() {
+    printf '  %b%-20s%b %s\n' "$CYAN" "$1" "$RESET" "$2"
 }
 
 menu_item() {
@@ -58,14 +79,14 @@ section_title() {
 }
 
 read_menu_choice() {
-    read -r -p 'Выбери действие: ' choice
+    ui_read 'Выбери действие:' choice
 }
 
 bool_text() {
     if [[ "$1" == true ]]; then
         printf '%bВКЛ%b\n' "$GREEN" "$RESET"
     else
-        printf '%bВЫКЛ%b\n' "$RED" "$RESET"
+        printf '%bВЫКЛ%b\n' "$DIM" "$RESET"
     fi
 }
 

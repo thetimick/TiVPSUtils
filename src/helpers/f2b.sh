@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-APP_NAME="Fail2ban Manager"
+APP_NAME="Fail2ban"
 
 MANAGED_SSHD_CONF="/etc/fail2ban/jail.d/99-f2ban-manager-sshd.local"
 MANAGED_IGNORE_CONF="/etc/fail2ban/jail.d/99-f2ban-manager-ignore.local"
@@ -52,10 +52,10 @@ choose_jail() {
     done
 
     echo
-    menu_item "0" "Отмена" "$YELLOW"
+    menu_item "0" "Отмена" "$DIM"
     echo
 
-    read -r -p "Выбери jail: " choice
+    ui_read "Выбери jail:" choice
 
     [[ "$choice" == "0" ]] && return 1
 
@@ -98,12 +98,10 @@ show_header() {
         fi
     fi
 
-    echo
-
-    printf "  %-29s %s\n" "Установлен:" "$installed"
-    printf "  %-29s %s\n" "Версия:" "$version"
-    printf "  %-29s %s\n" "Сервис:" "$service"
-    printf "  %-29s %s\n" "Активных jail:" "$jails"
+    ui_field "Установлен:" "$installed"
+    ui_field "Версия:" "$version"
+    ui_field "Сервис:" "$service"
+    ui_field "Активных jail:" "$jails"
 
     echo
 }
@@ -300,7 +298,7 @@ ban_ip() {
     }
 
     echo
-    read -r -p "IP для блокировки: " ip
+    ui_read "IP для блокировки:" ip
 
     if [[ -z "$ip" ]]; then
         error "IP не указан."
@@ -332,7 +330,7 @@ unban_ip() {
         return
     fi
 
-    read -r -p "IP для разблокировки: " ip
+    ui_read "IP для разблокировки:" ip
 
     if [[ -z "$ip" ]]; then
         error "IP не указан."
@@ -371,7 +369,7 @@ unban_ip() {
 show_recent_events() {
     local lines
 
-    read -r -p "Сколько последних событий показать? [50]: " lines
+    ui_read "Сколько последних событий показать? [50]:" lines
     lines="${lines:-50}"
 
     if ! [[ "$lines" =~ ^[0-9]+$ ]] || (( lines < 1 )); then
@@ -408,7 +406,7 @@ show_recent_events() {
 show_failed_ssh() {
     local lines
 
-    read -r -p "Сколько попыток показать? [50]: " lines
+    ui_read "Сколько попыток показать? [50]:" lines
     lines="${lines:-50}"
 
     if ! [[ "$lines" =~ ^[0-9]+$ ]] || (( lines < 1 )); then
@@ -467,11 +465,11 @@ configure_sshd() {
     section_title "Настройка jail [sshd]"
     echo
 
-    read -r -p "SSH порт [ssh]: " port
-    read -r -p "Время бана [1h]: " bantime
-    read -r -p "Окно попыток [10m]: " findtime
-    read -r -p "Максимум попыток [5]: " maxretry
-    read -r -p "Режим normal/ddos/extra/aggressive [normal]: " mode
+    ui_read "SSH порт [ssh]:" port
+    ui_read "Время бана [1h]:" bantime
+    ui_read "Окно попыток [10m]:" findtime
+    ui_read "Максимум попыток [5]:" maxretry
+    ui_read "Режим normal/ddos/extra/aggressive [normal]:" mode
 
     port="${port:-ssh}"
     bantime="${bantime:-1h}"
@@ -568,7 +566,7 @@ add_ignore_ip() {
         return
     fi
 
-    read -r -p "IP/CIDR для whitelist: " ip
+    ui_read "IP/CIDR для whitelist:" ip
 
     if [[ -z "$ip" ]]; then
         error "Адрес не указан."

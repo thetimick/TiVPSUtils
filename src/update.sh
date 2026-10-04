@@ -44,7 +44,7 @@ main_menu() {
         echo
         menu_item "19" "Удалить настройки менеджера" "$RED"
         echo
-        menu_item "0" "Выход" "$YELLOW"
+        menu_item "0" "Выход" "$DIM"
         echo
 
         read_menu_choice || return 0

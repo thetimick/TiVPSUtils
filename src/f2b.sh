@@ -42,7 +42,7 @@ main_menu() {
         echo
         menu_item "14" "Удалить Fail2ban" "$RED"
         echo
-        menu_item "0" "Выход" "$YELLOW"
+        menu_item "0" "Выход" "$DIM"
         echo
 
         read_menu_choice || return 0
