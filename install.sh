@@ -23,12 +23,26 @@ ARCHIVE_URL="https://github.com/${REPO}/archive/refs/heads/${BRANCH}.tar.gz"
 
 if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != dumb ]]; then
     RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m'
-    BLUE=$'\033[34m' CYAN=$'\033[36m' BOLD=$'\033[1m' DIM=$'\033[2m' RESET=$'\033[0m'
+    BLUE=$'\033[34m' ACCENT=$'\033[35m' BOLD=$'\033[1m' DIM=$'\033[2m' RESET=$'\033[0m'
+    # Lavender palette, with fallbacks for terminals with fewer colors.
+    case "${COLORTERM:-}:${TERM:-}" in
+        truecolor:*|24bit:*|*:*-direct|*:*truecolor*)
+            ACCENT=$'\033[38;2;196;161;241m'
+            GREEN=$'\033[38;2;145;215;175m'
+            YELLOW=$'\033[38;2;239;199;131m'
+            RED=$'\033[38;2;241;148;172m'
+            BLUE=$'\033[38;2;145;189;244m'
+            ;;
+        *:*256color*)
+            ACCENT=$'\033[38;5;183m' GREEN=$'\033[38;5;115m'
+            YELLOW=$'\033[38;5;222m' RED=$'\033[38;5;211m' BLUE=$'\033[38;5;111m'
+            ;;
+    esac
 else
-    RED='' GREEN='' YELLOW='' BLUE='' CYAN='' BOLD='' DIM='' RESET=''
+    RED='' GREEN='' YELLOW='' BLUE='' ACCENT='' BOLD='' DIM='' RESET=''
 fi
 
-# Cyan: navigation; green: success; yellow: caution; red: failure/destruction.
+# Lavender: navigation; green: success; yellow: caution; rose: failure/destruction.
 # Muted text: secondary information, exit and cancel. Labels work without color.
 info() { printf '%b[INFO]%b %s\n' "$BLUE" "$RESET" "$*"; }
 success() { printf '%b[ OK ]%b %s\n' "$GREEN" "$RESET" "$*"; }
@@ -73,7 +87,7 @@ require_root() {
 
 ui_header() {
     printf '\n%bTiVPSUtils%b\n' "$DIM" "$RESET"
-    printf '%b%s%b\n' "${CYAN}${BOLD}" "$1" "$RESET"
+    printf '%b%s%b\n' "${ACCENT}${BOLD}" "$1" "$RESET"
     separator
     printf '\n'
 }
@@ -87,11 +101,15 @@ ui_field() {
 }
 
 ui_command() {
-    printf '  %b%-20s%b %s\n' "$CYAN" "$1" "$RESET" "$2"
+    if [[ -n "${2:-}" ]]; then
+        printf '  %b%-20s%b %s\n' "${ACCENT}${BOLD}" "$1" "$RESET" "$2"
+    else
+        printf '  %b%s%b\n' "${ACCENT}${BOLD}" "$1" "$RESET"
+    fi
 }
 
 menu_item() {
-    printf ' %b%2s)%b %s\n' "${3:-$CYAN}" "$1" "$RESET" "$2"
+    printf ' %b%2s)%b %b%s%b\n' "${3:-$ACCENT}${BOLD}" "$1" "$RESET" "$BOLD" "$2" "$RESET"
 }
 
 section_title() {
@@ -334,10 +352,7 @@ clear_aliases() {
 
     printf "\n"
     printf "Менеджер всё ещё можно запустить напрямую:\n"
-    printf "  %b%s/install.sh%b\n" \
-        "$CYAN" \
-        "$INSTALL_DIR" \
-        "$RESET"
+    ui_command "${INSTALL_DIR}/install.sh"
 }
 
 # ──────────────────────────────────────────────
@@ -480,7 +495,7 @@ install_latest() (
 
     printf "\n"
     printf "Путь: %b%s%b\n" \
-        "$CYAN" \
+        "$ACCENT" \
         "$INSTALL_DIR" \
         "$RESET"
 
@@ -488,10 +503,7 @@ install_latest() (
 
     printf "Для применения aliases в текущей shell-сессии:\n"
     printf "\n"
-    printf "  %bsource %s%b\n" \
-        "$CYAN" \
-        "$PROFILE_FILE" \
-        "$RESET"
+    ui_command "source ${PROFILE_FILE}"
 
     printf "\n"
 )
@@ -621,56 +633,47 @@ show_help() {
     separator
     printf "\n"
 
-    printf "  %btiinstall%b\n" \
-        "$CYAN" "$RESET"
+    ui_command "tiinstall"
     printf "      Открыть интерактивный менеджер.\n"
 
     printf "\n"
 
-    printf "  %btiinstall update%b\n" \
-        "$CYAN" "$RESET"
+    ui_command "tiinstall update"
     printf "      Скачать и установить последнюю версию.\n"
 
     printf "\n"
 
-    printf "  %btiinstall list%b\n" \
-        "$CYAN" "$RESET"
+    ui_command "tiinstall list"
     printf "      Показать доступные команды.\n"
 
     printf "\n"
 
-    printf "  %btiinstall aliases%b\n" \
-        "$CYAN" "$RESET"
+    ui_command "tiinstall aliases"
     printf "      Показать установленные aliases.\n"
 
     printf "\n"
 
-    printf "  %btiinstall rebuild-aliases%b\n" \
-        "$CYAN" "$RESET"
+    ui_command "tiinstall rebuild-aliases"
     printf "      Пересоздать aliases.\n"
 
     printf "\n"
 
-    printf "  %btiinstall clear-aliases%b\n" \
-        "$CYAN" "$RESET"
+    ui_command "tiinstall clear-aliases"
     printf "      Удалить aliases TiVPSUtils.\n"
 
     printf "\n"
 
-    printf "  %btiinstall uninstall%b\n" \
-        "$CYAN" "$RESET"
+    ui_command "tiinstall uninstall"
     printf "      Полностью удалить TiVPSUtils.\n"
 
     printf "\n"
 
-    printf "  %btiinstall uninstall --yes%b\n" \
-        "$CYAN" "$RESET"
+    ui_command "tiinstall uninstall --yes"
     printf "      Удалить TiVPSUtils без подтверждения.\n"
 
     printf "\n"
 
-    printf "  %btiinstall help%b\n" \
-        "$CYAN" "$RESET"
+    ui_command "tiinstall help"
     printf "      Показать справку.\n"
 
     printf "\n"

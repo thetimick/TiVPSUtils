@@ -219,7 +219,7 @@ show_jails() {
     echo
 
     for jail in $(get_jails); do
-        echo -e "${CYAN}[$jail]${RESET}"
+        echo -e "${ACCENT}[$jail]${RESET}"
 
         fail2ban-client status "$jail" || true
 
@@ -256,7 +256,7 @@ show_banned_ips() {
 
         if (( ${#ips[@]} > 0 )); then
 
-            echo -e "${CYAN}[$jail]${RESET}"
+            echo -e "${ACCENT}[$jail]${RESET}"
 
             for ip in "${ips[@]}"; do
                 [[ -z "$ip" ]] && continue

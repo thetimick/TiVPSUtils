@@ -3,12 +3,26 @@
 
 if [[ -t 1 && -z "${NO_COLOR:-}" && "${TERM:-}" != dumb ]]; then
     RED=$'\033[31m' GREEN=$'\033[32m' YELLOW=$'\033[33m'
-    BLUE=$'\033[34m' CYAN=$'\033[36m' BOLD=$'\033[1m' DIM=$'\033[2m' RESET=$'\033[0m'
+    BLUE=$'\033[34m' ACCENT=$'\033[35m' BOLD=$'\033[1m' DIM=$'\033[2m' RESET=$'\033[0m'
+    # Lavender palette, with fallbacks for terminals with fewer colors.
+    case "${COLORTERM:-}:${TERM:-}" in
+        truecolor:*|24bit:*|*:*-direct|*:*truecolor*)
+            ACCENT=$'\033[38;2;196;161;241m'
+            GREEN=$'\033[38;2;145;215;175m'
+            YELLOW=$'\033[38;2;239;199;131m'
+            RED=$'\033[38;2;241;148;172m'
+            BLUE=$'\033[38;2;145;189;244m'
+            ;;
+        *:*256color*)
+            ACCENT=$'\033[38;5;183m' GREEN=$'\033[38;5;115m'
+            YELLOW=$'\033[38;5;222m' RED=$'\033[38;5;211m' BLUE=$'\033[38;5;111m'
+            ;;
+    esac
 else
-    RED='' GREEN='' YELLOW='' BLUE='' CYAN='' BOLD='' DIM='' RESET=''
+    RED='' GREEN='' YELLOW='' BLUE='' ACCENT='' BOLD='' DIM='' RESET=''
 fi
 
-# Cyan: navigation; green: success; yellow: caution; red: failure/destruction.
+# Lavender: navigation; green: success; yellow: caution; rose: failure/destruction.
 # Muted text: secondary information, exit and cancel. Labels work without color.
 info() { printf '%b[INFO]%b %s\n' "$BLUE" "$RESET" "$*"; }
 success() { printf '%b[ OK ]%b %s\n' "$GREEN" "$RESET" "$*"; }
@@ -53,7 +67,7 @@ require_root() {
 
 ui_header() {
     printf '\n%bTiVPSUtils%b\n' "$DIM" "$RESET"
-    printf '%b%s%b\n' "${CYAN}${BOLD}" "$1" "$RESET"
+    printf '%b%s%b\n' "${ACCENT}${BOLD}" "$1" "$RESET"
     separator
     printf '\n'
 }
@@ -67,11 +81,15 @@ ui_field() {
 }
 
 ui_command() {
-    printf '  %b%-20s%b %s\n' "$CYAN" "$1" "$RESET" "$2"
+    if [[ -n "${2:-}" ]]; then
+        printf '  %b%-20s%b %s\n' "${ACCENT}${BOLD}" "$1" "$RESET" "$2"
+    else
+        printf '  %b%s%b\n' "${ACCENT}${BOLD}" "$1" "$RESET"
+    fi
 }
 
 menu_item() {
-    printf ' %b%2s)%b %s\n' "${3:-$CYAN}" "$1" "$RESET" "$2"
+    printf ' %b%2s)%b %b%s%b\n' "${3:-$ACCENT}${BOLD}" "$1" "$RESET" "$BOLD" "$2" "$RESET"
 }
 
 section_title() {
